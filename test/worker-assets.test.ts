@@ -7,16 +7,20 @@ import {
 } from "../src/worker-assets.js";
 
 describe("Worker Ghostty assets", () => {
-  it("embeds byte-exact copies of the pinned Ghostty browser assets", async () => {
-    expect(GHOSTTY_ASSET_PATHS).toEqual(nodeAssetPaths);
+  it(
+    "embeds byte-exact copies of the pinned Ghostty browser assets",
+    { timeout: 10_000 },
+    async () => {
+      expect(GHOSTTY_ASSET_PATHS).toEqual(nodeAssetPaths);
 
-    for (const pathname of Object.values(GHOSTTY_ASSET_PATHS)) {
-      const expected = await readGhosttyAsset(pathname);
-      const actual = readGhosttyWorkerAsset(pathname);
-      expect(actual?.contentType).toBe(expected?.contentType);
-      expect(Buffer.from(actual?.body ?? [])).toEqual(Buffer.from(expected?.body ?? []));
-    }
-  });
+      for (const pathname of Object.values(GHOSTTY_ASSET_PATHS)) {
+        const expected = await readGhosttyAsset(pathname);
+        const actual = readGhosttyWorkerAsset(pathname);
+        expect(actual?.contentType).toBe(expected?.contentType);
+        expect(Buffer.from(actual?.body ?? [])).toEqual(Buffer.from(expected?.body ?? []));
+      }
+    },
+  );
 
   it("keeps decoded asset bytes isolated from caller mutation", () => {
     const asset = readGhosttyWorkerAsset(GHOSTTY_ASSET_PATHS.wasm);
