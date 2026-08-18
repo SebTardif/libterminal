@@ -8,6 +8,11 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 
 - Refresh development dependencies, pnpm, and the pinned CodeQL action while preserving the two-day dependency cooldown.
 
+### Fixed
+
+- Route stdin stream errors through `attachLocalStdio` so a pipe EIO
+  rejects the attach instead of crashing the Node process.
+
 ## 0.3.2 - 2026-07-15
 
 ### Fixed
