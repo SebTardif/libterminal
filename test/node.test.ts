@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import {
   attachLocalStdio,
@@ -149,7 +150,7 @@ describe("attachLocalStdio", () => {
     controller.abort();
     await attached;
     expect(reasons).toEqual(["aborted"]);
-    expect(removed).toEqual(["stdin:data", "stdout:resize"]);
+    expect(removed).toEqual(["stdin:data", "stdout:resize", "stdout:error"]);
     expect(paused).toBe(true);
   });
 
@@ -244,7 +245,7 @@ describe("attachLocalStdio", () => {
     await writeStartedPromise;
     completeOutput({ done: true, value: undefined });
     await attached;
-    expect(removed).toEqual(["stdin:data", "stdout:resize"]);
+    expect(removed).toEqual(["stdin:data", "stdout:resize", "stdout:error"]);
     expect(paused).toBe(true);
     resolveWrite();
   });
@@ -324,6 +325,69 @@ describe("attachLocalStdio", () => {
     expect(returned).toBe(true);
   });
 
+  it("rejects when stdout emits EPIPE instead of crashing the host", async () => {
+    let returned = false;
+    const output = {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => ({ done: false as const, value: new Uint8Array([1]) }),
+        return: async () => {
+          returned = true;
+          return { done: true as const, value: undefined };
+        },
+      }),
+    };
+    const stdin = {
+      isTTY: false,
+      readableFlowing: null,
+      on: () => undefined,
+      off: () => undefined,
+      pause: () => undefined,
+    } as unknown as NodeJS.ReadStream;
+    const error = Object.assign(new Error("EPIPE"), { code: "EPIPE" });
+    const stdoutEmitter = new EventEmitter();
+    const stdout = Object.assign(stdoutEmitter, {
+      columns: 80,
+      rows: 24,
+      write(_bytes: Uint8Array, callback: (error?: Error | null) => void) {
+        queueMicrotask(() => {
+          stdoutEmitter.emit("error", error);
+          callback(error);
+        });
+        return false;
+      },
+    }) as unknown as NodeJS.WriteStream;
+
+    await expect(
+      attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout }),
+    ).rejects.toBe(error);
+    expect(returned).toBe(true);
+  });
+
+  it("rejects when stdout emits an error while waiting for output", async () => {
+    const stdin = {
+      isTTY: false,
+      readableFlowing: null,
+      on: () => undefined,
+      off: () => undefined,
+      pause: () => undefined,
+    } as unknown as NodeJS.ReadStream;
+    const stdout = Object.assign(new EventEmitter(), {
+      columns: 80,
+      rows: 24,
+      write: (_bytes: Uint8Array, callback: (error?: Error | null) => void) => {
+        callback();
+        return true;
+      },
+    }) as unknown as NodeJS.WriteStream;
+    const attached = attachLocalStdio(
+      { output: neverOutput(), close: async () => undefined },
+      { stdin, stdout },
+    );
+    const error = Object.assign(new Error("EPIPE"), { code: "EPIPE" });
+    stdout.emit("error", error);
+    await expect(attached).rejects.toBe(error);
+  });
+
   it("restores stdio when closing a failed output iterator also fails", async () => {
     const rawModes: boolean[] = [];
     const removed: string[] = [];
@@ -362,7 +426,7 @@ describe("attachLocalStdio", () => {
       attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout }),
     ).rejects.toThrow("return failed");
     expect(rawModes).toEqual([true, false]);
-    expect(removed).toEqual(["stdin:data", "stdout:resize"]);
+    expect(removed).toEqual(["stdin:data", "stdout:resize", "stdout:error"]);
   });
 
   it("restores stdio when the initial resize fails", async () => {
@@ -401,7 +465,7 @@ describe("attachLocalStdio", () => {
       ),
     ).rejects.toThrow("resize failed");
     expect(rawModes).toEqual([true, false]);
-    expect(removed).toEqual(["stdin:data", "stdout:resize"]);
+    expect(removed).toEqual(["stdin:data", "stdout:resize", "stdout:error"]);
     expect(paused).toBe(true);
   });
 
@@ -465,7 +529,7 @@ describe("attachLocalStdio", () => {
     rejectLaterResize(new Error("resize rejected"));
 
     await expect(attached).rejects.toThrow("resize rejected");
-    expect(removed).toEqual(["stdin:data", "stdout:resize"]);
+    expect(removed).toEqual(["stdin:data", "stdout:resize", "stdout:error"]);
   });
 });
 
