@@ -204,10 +204,14 @@ export async function attachLocalStdio(
     stdin.setRawMode(true);
     stdin.resume();
   }
+  const handleStdinError = (error: unknown) => {
+    rejectInputFailure(error);
+  };
   const handleStdoutError = (error: unknown) => {
     rejectInputFailure(error);
   };
   stdin.on("data", writeInput);
+  stdin.on("error", handleStdinError);
   stdout.on("resize", handleResize);
   stdout.on("error", handleStdoutError);
   options?.signal?.addEventListener("abort", abort, { once: true });
@@ -230,6 +234,7 @@ export async function attachLocalStdio(
   } finally {
     aborted?.dispose();
     stdin.off("data", writeInput);
+    stdin.off("error", handleStdinError);
     stdout.off("resize", handleResize);
     stdout.off("error", handleStdoutError);
     try {
