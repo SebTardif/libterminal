@@ -8,6 +8,11 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 
 - Refresh development dependencies, pnpm, and the pinned CodeQL action while preserving the two-day dependency cooldown.
 
+### Fixed
+
+- Stop `BatchPublisher` from buffering writes after the sink fails, so a closed
+  transport cannot grow unbounded memory.
+
 ## 0.3.2 - 2026-07-15
 
 ### Fixed
