@@ -86,6 +86,42 @@ describe("BatchPublisher", () => {
     await publisher.stop();
     expect(batches).toEqual([]);
   });
+
+  it("stops buffering after the sink fails", async () => {
+    const errors: unknown[] = [];
+    let rejectSink!: (error: unknown) => void;
+    const publisher = new BatchPublisher(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectSink = reject;
+        }),
+      {
+        maxBatchBytes: 8,
+        flushIntervalMs: 10_000,
+        onError: (error) => {
+          errors.push(error);
+        },
+      },
+    );
+
+    publisher.write(bytes("12345678"));
+    await vi.waitFor(() => expect(typeof rejectSink).toBe("function"));
+    publisher.write(bytes("hold"));
+    const sinkError = new Error("sink closed");
+    rejectSink(sinkError);
+    await vi.waitFor(() => expect(errors).toEqual([sinkError]));
+
+    for (let index = 0; index < 100; index += 1) {
+      publisher.write(bytes("xxxxxxxx"));
+    }
+    await Promise.resolve();
+
+    const state = publisher as unknown as { bytes: number; chunks: Uint8Array[] };
+    expect(state.chunks).toEqual([]);
+    expect(state.bytes).toBe(0);
+    expect(errors).toEqual([sinkError]);
+    await expect(publisher.flush()).rejects.toBe(sinkError);
+  });
 });
 
 function bytes(value: string): Uint8Array {

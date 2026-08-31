@@ -207,9 +207,13 @@ export async function attachLocalStdio(
   const handleStdinError = (error: unknown) => {
     rejectInputFailure(error);
   };
+  const handleStdoutError = (error: unknown) => {
+    rejectInputFailure(error);
+  };
   stdin.on("data", writeInput);
   stdin.on("error", handleStdinError);
   stdout.on("resize", handleResize);
+  stdout.on("error", handleStdoutError);
   options?.signal?.addEventListener("abort", abort, { once: true });
 
   let outputCompleted = false;
@@ -223,13 +227,16 @@ export async function attachLocalStdio(
         outputCompleted = next !== abortedResult;
         break;
       }
-      await writeToStream(stdout, next.value);
+      const written = writeToStream(stdout, next.value);
+      void written.catch(noop);
+      await Promise.race([written, inputFailure]);
     }
   } finally {
     aborted?.dispose();
     stdin.off("data", writeInput);
     stdin.off("error", handleStdinError);
     stdout.off("resize", handleResize);
+    stdout.off("error", handleStdoutError);
     try {
       if (!outputCompleted) {
         const returned = output.return?.();

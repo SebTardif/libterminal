@@ -10,8 +10,9 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 
 ### Fixed
 
-- Route stdin stream errors through `attachLocalStdio` so a pipe EIO
-  rejects the attach instead of crashing the Node process.
+- Handle stdout errors, including EPIPE, in `attachLocalStdio` so closed pipes reject the attachment and restore stdio instead of crashing the process. (#54, thanks @SebTardif)
+- Stop `BatchPublisher` from copying and buffering output after a sink failure, preventing unbounded memory growth after transport closure. (#55, thanks @SebTardif)
+- Route stdin stream errors through `attachLocalStdio` failure handling so pipe errors reject the attachment and restore stdio instead of crashing the process. (#50, thanks @SebTardif)
 
 ## 0.3.2 - 2026-07-15
 
