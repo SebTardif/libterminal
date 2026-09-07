@@ -11,6 +11,10 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 - Refresh the transitive nanoid dependency to fix its custom-generator infinite-loop advisory in the development toolchain.
 - Refresh browser validation to Playwright 1.63 and update pnpm to 12.3.4 with its pnpm 12-compatible setup action, preserving the two-day dependency cooldown.
 
+### Fixed
+
+- Sanitize `TerminalHubClient.close` codes and reasons, then retry `close(1000)` / `close()`, so reserved codes and oversize reasons do not leave the hub WebSocket open. Thanks @SebTardif
+
 ## 0.3.4 - 2026-09-05
 
 ### Changed
