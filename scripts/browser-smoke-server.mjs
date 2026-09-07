@@ -7,6 +7,10 @@ const host = "127.0.0.1";
 const port = 4179;
 const distRoot = path.resolve("dist");
 
+/**
+ * @param {string} pathname
+ * @returns {string | null}
+ */
 function distScriptPath(pathname) {
   if (!pathname.startsWith("/dist/") || !pathname.endsWith(".js")) {
     return null;
