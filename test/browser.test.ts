@@ -238,6 +238,75 @@ describe("TerminalHubClient", () => {
     client.close();
   });
 
+  it.each([1001, 1011, 4001])("preserves code %i when an injected transport accepts it", (code) => {
+    const socket = new TestTerminalHubSocket();
+    const close = vi.spyOn(socket, "close");
+    const client = new TerminalHubClient({
+      url: "wss://terminal.example",
+      socketFactory: () => socket,
+    });
+    client.connect();
+    socket.open();
+
+    client.close(code, "done");
+
+    expect(close.mock.calls).toEqual([[code, "done"]]);
+    expect(socket.readyState).toBe(3);
+  });
+
+  it("retries without arguments when both coded close attempts fail", () => {
+    const socket = new TestTerminalHubSocket();
+    const close = vi
+      .spyOn(socket, "close")
+      .mockImplementationOnce(() => {
+        throw new Error("first attempt");
+      })
+      .mockImplementationOnce(() => {
+        throw new Error("second attempt");
+      });
+    const client = new TerminalHubClient({
+      url: "wss://terminal.example",
+      socketFactory: () => socket,
+    });
+    client.connect();
+    socket.open();
+
+    client.close();
+
+    expect(close.mock.calls).toEqual([
+      [1000, "terminal hub closed"],
+      [1000, "terminal hub closed"],
+      [],
+    ]);
+    expect(socket.readyState).toBe(3);
+  });
+
+  it("reports a failed teardown and retains the socket for retry", () => {
+    const socket = new TestTerminalHubSocket();
+    const failure = new Error("close unavailable");
+    const errors: unknown[] = [];
+    const close = vi.spyOn(socket, "close").mockImplementation(() => {
+      throw failure;
+    });
+    const client = new TerminalHubClient({
+      url: "wss://terminal.example",
+      socketFactory: () => socket,
+      onError: (error) => errors.push(error),
+    });
+    client.connect();
+    socket.open();
+
+    client.close();
+
+    expect(close).toHaveBeenCalledTimes(3);
+    expect(errors).toEqual([failure]);
+    expect(client.isOpen).toBe(true);
+    close.mockRestore();
+    client.close();
+    expect(socket.readyState).toBe(3);
+    expect(client.isOpen).toBe(false);
+  });
+
   it("closes the socket after native close rejects reserved codes", () => {
     const socket = new NativeCloseSocket();
     const errors: unknown[] = [];

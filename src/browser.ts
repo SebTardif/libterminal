@@ -282,7 +282,7 @@ export class TerminalHubClient {
     if (!socket || socket.readyState >= WEB_SOCKET_CLOSING) {
       return;
     }
-    safeClose(socket, code, reason);
+    safeClose(socket, code, reason, (error) => this.reportError(error));
   }
 
   private handleOpen(socket: TerminalHubWebSocket): () => void {
