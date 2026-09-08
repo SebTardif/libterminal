@@ -35,6 +35,13 @@ describe("TerminalHubClient native WebSocket teardown", () => {
       expectedReason: "x".repeat(123),
     },
     {
+      name: "fractional code",
+      code: 4001.5,
+      reason: "done",
+      expectedCode: 1000,
+      expectedReason: "done",
+    },
+    {
       name: "oversized Unicode",
       code: 1000,
       reason: "🦞".repeat(40),

@@ -254,6 +254,25 @@ describe("TerminalHubClient", () => {
     expect(socket.readyState).toBe(3);
   });
 
+  it.each([1011.5, 4001.5])(
+    "normalizes fractional close code %f before calling the transport",
+    (code) => {
+      const socket = new TestTerminalHubSocket();
+      const close = vi.spyOn(socket, "close");
+      const client = new TerminalHubClient({
+        url: "wss://terminal.example",
+        socketFactory: () => socket,
+      });
+      client.connect();
+      socket.open();
+
+      client.close(code, "done");
+
+      expect(close.mock.calls).toEqual([[1000, "done"]]);
+      expect(socket.readyState).toBe(3);
+    },
+  );
+
   it("retries without arguments when both coded close attempts fail", () => {
     const socket = new TestTerminalHubSocket();
     const close = vi
