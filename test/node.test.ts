@@ -607,6 +607,7 @@ describe("attachLocalStdio", () => {
       rows: 24,
       on: () => undefined,
       off: () => undefined,
+      once: () => undefined,
       write: (_bytes: Uint8Array, callback: (error?: Error | null) => void) => {
         callback(new Error("EPIPE"));
         return false;
@@ -655,6 +656,51 @@ describe("attachLocalStdio", () => {
       attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout }),
     ).rejects.toBe(error);
     expect(returned).toBe(true);
+  });
+
+  it("keeps the stdout error listener while a failed attach still has a write pending", async () => {
+    let writeCallback: ((error?: Error | null) => void) | undefined;
+    let markWritePending!: () => void;
+    const writePending = new Promise<void>((resolve) => {
+      markWritePending = resolve;
+    });
+    const output = {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => ({ done: false as const, value: new Uint8Array([1]) }),
+        return: async () => ({ done: true as const, value: undefined }),
+      }),
+    };
+    const stdinError = Object.assign(new Error("stdin eio"), { code: "EIO" });
+    const stdin = Object.assign(new EventEmitter(), {
+      isTTY: false,
+      readableFlowing: null,
+      pause: () => undefined,
+    }) as unknown as NodeJS.ReadStream;
+    const epipe = Object.assign(new Error("EPIPE"), { code: "EPIPE" });
+    const stdoutEmitter = new EventEmitter();
+    const stdout = Object.assign(stdoutEmitter, {
+      columns: 80,
+      rows: 24,
+      write(_bytes: Uint8Array, callback: (error?: Error | null) => void) {
+        writeCallback = callback;
+        markWritePending();
+        return false;
+      },
+    }) as unknown as NodeJS.WriteStream;
+
+    const attached = attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout });
+    await writePending;
+    stdin.emit("error", stdinError);
+    await expect(attached).rejects.toBe(stdinError);
+    expect(stdout.listenerCount("error")).toBe(1);
+    expect(() => stdout.emit("error", epipe)).not.toThrow();
+    if (writeCallback === undefined) {
+      throw new Error("stdout write was not called");
+    }
+    writeCallback(epipe);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(stdout.listenerCount("error")).toBe(0);
   });
 
   it("rejects when stdout emits an error while waiting for output", async () => {
@@ -710,6 +756,7 @@ describe("attachLocalStdio", () => {
       rows: 24,
       on: () => undefined,
       off: (event: string) => removed.push(`stdout:${event}`),
+      once: () => undefined,
       write: (_bytes: Uint8Array, callback: (error?: Error | null) => void) => {
         callback(new Error("EPIPE"));
         return false;
@@ -720,7 +767,7 @@ describe("attachLocalStdio", () => {
       attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout }),
     ).rejects.toThrow("return failed");
     expect(rawModes).toEqual([true, false]);
-    expect(removed).toEqual(["stdin:data", "stdin:error", "stdout:resize", "stdout:error"]);
+    expect(removed).toEqual(["stdin:data", "stdin:error", "stdout:resize"]);
   });
 
   it("restores stdio when the initial resize fails", async () => {

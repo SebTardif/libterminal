@@ -255,7 +255,7 @@ export async function attachLocalStdio(
     stdin.off("data", writeInput);
     stdin.off("error", rejectFailure);
     stdout.off("resize", handleResize);
-    if (pendingOutput && options?.signal?.aborted) {
+    if (pendingOutput) {
       // A write callback can fail before the stream emits its error or close event.
       retainingOutputError = true;
       stdout.once("close", releasePendingOutputError);
