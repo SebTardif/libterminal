@@ -232,4 +232,31 @@ describe("BatchPublisher", () => {
     expect(errors).toEqual([sinkError]);
     await expect(publisher.flush()).rejects.toBe(sinkError);
   });
+
+  it("reports one sink failure when a second batch is queued behind it", async () => {
+    const errors: unknown[] = [];
+    let rejectSink!: (error: unknown) => void;
+    const publisher = new BatchPublisher(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectSink = reject;
+        }),
+      {
+        maxBatchBytes: 4,
+        flushIntervalMs: 10_000,
+        onError: (error) => {
+          errors.push(error);
+        },
+      },
+    );
+
+    publisher.write(bytes("abcd"));
+    await vi.waitFor(() => expect(typeof rejectSink).toBe("function"));
+    publisher.write(bytes("efgh"));
+    const sinkError = new Error("sink closed");
+    rejectSink(sinkError);
+    await vi.waitFor(() => expect(errors.length).toBeGreaterThan(0));
+    await Promise.resolve();
+    expect(errors).toEqual([sinkError]);
+  });
 });
