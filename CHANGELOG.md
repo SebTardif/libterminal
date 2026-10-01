@@ -4,6 +4,10 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 
 ## 0.3.9 - Unreleased
 
+### Fixed
+
+- Finish a worker bridge when either socket is already closed, close the remaining peer, and do not start the control timer.
+
 ## 0.3.8 - 2026-10-01
 
 **Highlights:** Keep failed stdio attachments protected from late stdout errors until pending output settles.

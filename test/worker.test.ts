@@ -16,6 +16,28 @@ function redactTestToken(reason: string): string {
 }
 
 describe("bridgeWebSockets", () => {
+  it("closes the open peer when the other socket is already closed", async () => {
+    const left = new FakeWebSocket();
+    left.readyState = 3;
+    const right = new FakeWebSocket();
+    let checks = 0;
+    const bridge = bridgeWebSockets(left, right, {
+      canSendLeft: async () => {
+        checks += 1;
+        return true;
+      },
+      controlCheckIntervalMs: 10,
+    });
+    const settled = await Promise.race([
+      bridge.completed.then(() => "done"),
+      new Promise((resolve) => setTimeout(() => resolve("hang"), 50)),
+    ]);
+    expect(settled).toBe("done");
+    expect(right.closed).toEqual({ code: 1000, reason: "peer closed" });
+    expect(left.closed).toBeUndefined();
+    expect(checks).toBe(0);
+  });
+
   it.each(["left", "right"])("discards %s payloads normalized after close", async (direction) => {
     const left = new FakeWebSocket();
     const right = new FakeWebSocket();
