@@ -7,6 +7,7 @@ All notable changes to `@openclaw/libterminal` will be documented in this file.
 ### Fixed
 
 - Finish a worker bridge when either socket is already closed, close the remaining peer, and do not start the control timer.
+- Report a batch publisher sink failure once when another batch is already queued behind that same failure.
 
 ## 0.3.8 - 2026-10-01
 
