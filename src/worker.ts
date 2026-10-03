@@ -4,6 +4,7 @@ import { cleanReason, safeClose } from "./websocket-close.js";
 export const WEB_SOCKET_CONNECTING = 0;
 export const WEB_SOCKET_OPEN = 1;
 const WEB_SOCKET_CLOSING = 2;
+const WEB_SOCKET_CLOSED = 3;
 
 export type WebSocketPayload = string | ArrayBuffer;
 
@@ -223,9 +224,9 @@ export function bridgeWebSockets(
   left.addEventListener("error", onLeftError);
   right.addEventListener("error", onRightError);
 
-  if (left.readyState >= WEB_SOCKET_CLOSING || right.readyState >= WEB_SOCKET_CLOSING) {
-    const leftClosed = left.readyState >= WEB_SOCKET_CLOSING;
-    const rightClosed = right.readyState >= WEB_SOCKET_CLOSING;
+  if (left.readyState >= WEB_SOCKET_CLOSED || right.readyState >= WEB_SOCKET_CLOSED) {
+    const leftClosed = left.readyState >= WEB_SOCKET_CLOSED;
+    const rightClosed = right.readyState >= WEB_SOCKET_CLOSED;
     stop();
     if (!leftClosed) {
       closePeer({ code: 1000, reason: "peer closed" }, left, sanitizeReason);
@@ -233,7 +234,11 @@ export function bridgeWebSockets(
     if (!rightClosed) {
       closePeer({ code: 1000, reason: "peer closed" }, right, sanitizeReason);
     }
-  } else if (options.canSendLeft) {
+  } else if (
+    left.readyState < WEB_SOCKET_CLOSING &&
+    right.readyState < WEB_SOCKET_CLOSING &&
+    options.canSendLeft
+  ) {
     void revalidateControl();
     if (!stopped && controlCheckIntervalMs > 0) {
       controlTimer = setInterval(() => void revalidateControl(), controlCheckIntervalMs);

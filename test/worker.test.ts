@@ -38,6 +38,32 @@ describe("bridgeWebSockets", () => {
     expect(checks).toBe(0);
   });
 
+  it("waits for a closing socket so its close metadata reaches the peer", async () => {
+    const left = new FakeWebSocket();
+    left.readyState = 2;
+    const right = new FakeWebSocket();
+    let checks = 0;
+    const bridge = bridgeWebSockets(left, right, {
+      canSendLeft: async () => {
+        checks += 1;
+        return true;
+      },
+      controlCheckIntervalMs: 10,
+    });
+    let completed = false;
+    void bridge.completed.then(() => {
+      completed = true;
+    });
+
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    expect(checks).toBe(0);
+
+    left.emitClose(1011, "upstream failure");
+    await bridge.completed;
+    expect(right.closed).toEqual({ code: 1011, reason: "upstream failure" });
+  });
+
   it.each(["left", "right"])("discards %s payloads normalized after close", async (direction) => {
     const left = new FakeWebSocket();
     const right = new FakeWebSocket();
