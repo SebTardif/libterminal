@@ -189,6 +189,7 @@ export class BatchPublisher {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pending: Promise<void> = Promise.resolve();
   private failure: unknown;
+  private failureReported = false;
   private stopped = false;
   private abortSignal?: AbortSignal;
   private abortHandler?: () => void;
@@ -209,7 +210,7 @@ export class BatchPublisher {
       return;
     }
     this.abortSignal = options?.signal;
-    this.abortHandler = () => void this.stop().catch((error: unknown) => this.onError?.(error));
+    this.abortHandler = () => void this.stop().catch((error: unknown) => this.reportFailure(error));
     this.abortSignal?.addEventListener("abort", this.abortHandler, { once: true });
   }
 
@@ -220,12 +221,12 @@ export class BatchPublisher {
     this.chunks.push(new Uint8Array(bytes));
     this.bytes += bytes.byteLength;
     if (this.bytes >= this.maxBatchBytes) {
-      void this.flush().catch((error: unknown) => this.onError?.(error));
+      void this.flush().catch((error: unknown) => this.reportFailure(error));
       return;
     }
     if (!this.timer) {
       this.timer = setTimeout(() => {
-        void this.flush().catch((error: unknown) => this.onError?.(error));
+        void this.flush().catch((error: unknown) => this.reportFailure(error));
       }, this.flushIntervalMs);
     }
   }
@@ -263,6 +264,14 @@ export class BatchPublisher {
     }
     this.stopped = true;
     await this.flush();
+  }
+
+  private reportFailure(error: unknown): void {
+    if (this.failureReported) {
+      return;
+    }
+    this.failureReported = true;
+    this.onError?.(error);
   }
 
   private dropBufferedChunks(): void {
