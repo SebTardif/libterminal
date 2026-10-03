@@ -703,6 +703,47 @@ describe("attachLocalStdio", () => {
     expect(stdout.listenerCount("error")).toBe(0);
   });
 
+  it("keeps stdout error protection until delayed destruction closes the stream", async () => {
+    let finishDestroy!: () => void;
+    const lateError = new Error("delayed destroy failure");
+    const stdout = Object.assign(
+      new Writable({
+        destroy(error, callback) {
+          finishDestroy = () => callback(error);
+        },
+      }),
+      { columns: 80, rows: 24 },
+    ) as unknown as NodeJS.WriteStream;
+    stdout.destroy(lateError);
+    expect(stdout.destroyed).toBe(true);
+    expect(stdout.closed).toBe(false);
+
+    const output = {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => ({ done: false as const, value: new Uint8Array([1]) }),
+        return: async () => ({ done: true as const, value: undefined }),
+      }),
+    };
+    const stdin = Object.assign(new EventEmitter(), {
+      isTTY: false,
+      readableFlowing: null,
+      pause: () => undefined,
+    }) as unknown as NodeJS.ReadStream;
+
+    try {
+      await expect(
+        attachLocalStdio({ output, close: async () => undefined }, { stdin, stdout }),
+      ).rejects.toMatchObject({ code: "ERR_STREAM_DESTROYED" });
+      expect(stdout.listenerCount("error")).toBe(1);
+    } finally {
+      stdout.once("error", () => undefined);
+      const closed = new Promise<void>((resolve) => stdout.once("close", resolve));
+      finishDestroy();
+      await closed;
+    }
+    expect(stdout.listenerCount("error")).toBe(0);
+  });
+
   it("drops stdout listeners when a pending write fails on an already-closed stream", async () => {
     const output = {
       [Symbol.asyncIterator]: () => ({

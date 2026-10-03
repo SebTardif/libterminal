@@ -258,7 +258,7 @@ export async function attachLocalStdio(
     if (pendingOutput) {
       // A write callback can fail before the stream emits its error or close event.
       retainingOutputError = true;
-      const outputClosedBeforeSettlement = stdout.destroyed || stdout.closed;
+      const outputClosedBeforeSettlement = stdout.closed;
       stdout.once("close", releasePendingOutputError);
       void pendingOutput.then(releasePendingOutputError, () => {
         if (stdoutErrorSeen || outputClosedBeforeSettlement) {
